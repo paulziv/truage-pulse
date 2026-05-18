@@ -48,24 +48,35 @@ body {
 .topnav {
   display: flex;
   gap: 24px;
-  padding: 14px 32px;
-  border-bottom: 1px solid var(--rule);
-  background: var(--bg-soft);
+  padding: 0 32px;
+  height: 52px;
+  background: var(--accent);
   font-size: 13px;
   align-items: center;
 }
 .topnav a {
-  color: var(--ink-soft);
+  color: rgba(255,255,255,0.65);
   text-decoration: none;
   font-weight: 500;
+  padding: 4px 0;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
 }
-.topnav a:hover { color: var(--accent); }
-.topnav a.active { color: var(--accent); font-weight: 600; }
+.topnav a:hover { color: #fff; }
+.topnav a.active { color: #36ECDE; font-weight: 600; border-bottom-color: #36ECDE; }
 .topnav .brand {
   font-weight: 700;
-  color: var(--ink);
+  color: #fff;
   margin-right: auto;
   letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.brand-icon {
+  width: 28px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 /* ── Headers ─────────────────────────────────────────────────────────────── */
@@ -161,13 +172,19 @@ p { margin: 0 0 12px; }
 }
 .summary-card {
   border: 1px solid var(--rule);
-  border-radius: 4px;
-  padding: 14px 16px;
+  border-radius: 8px;
+  padding: 16px 18px;
   background: var(--bg);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  transition: box-shadow 0.15s;
 }
+.summary-card:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.09); }
 .summary-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
-.summary-card .value { font-size: 28px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
-.summary-card .sub { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+.summary-card .value { font-size: 30px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.summary-card .sub { font-size: 11px; color: var(--ink-soft); margin-top: 3px; }
+.summary-card.good { border-top: 3px solid var(--good); }
+.summary-card.warn { border-top: 3px solid var(--warn); }
+.summary-card.bad  { border-top: 3px solid var(--bad); }
 .summary-card.good .value { color: var(--good); }
 .summary-card.warn .value { color: var(--warn); }
 .summary-card.bad  .value { color: var(--bad); }
@@ -310,15 +327,4 @@ details { margin: 8px 0 16px; }
 summary { cursor: pointer; font-weight: 600; color: var(--accent); padding: 6px 0; }
 details[open] summary { margin-bottom: 8px; }
 
-footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--rule); color: var(--ink-faint); font-size: 12px; }
-
-/* ── Stub page ───────────────────────────────────────────────────────────── */
-.stub-banner {
-  background: var(--warn-bg);
-  border: 1px solid var(--warn);
-  border-radius: 4px;
-  padding: 24px;
-  text-align: center;
-  margin: 32px 0;
-}
-.stub-banner h2 { margin-top: 0; border: 0; padding-top: 0; color: var(--warn); }
+footer { margin-top: 60px; padding-top: 20px; border

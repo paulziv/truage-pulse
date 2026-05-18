@@ -208,40 +208,4 @@ def add_rule(rule: str) -> None:
         cur.execute(f"INSERT INTO rules_of_org (rule) VALUES ({ph})", (rule,))
 
 
-# ── Report writer questions ──────────────────────────────────────────────────
-
-def list_open_questions() -> list[dict]:
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT id, question, created_at FROM report_writer_questions "
-            "WHERE answered_at IS NULL ORDER BY id"
-        )
-        return [
-            {
-                "id":         r[0] if isinstance(r, tuple) else r["id"],
-                "question":   r[1] if isinstance(r, tuple) else r["question"],
-                "created_at": r[2] if isinstance(r, tuple) else r["created_at"],
-            }
-            for r in cur.fetchall()
-        ]
-
-
-def add_question(question: str) -> None:
-    ph = _ph()
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            f"INSERT INTO report_writer_questions (question) VALUES ({ph})", (question,)
-        )
-
-
-# ── CLI ──────────────────────────────────────────────────────────────────────
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--init", action="store_true", help="Create tables")
-    args = parser.parse_args()
-    if args.init:
-        init_db()
-        backend = "Postgres" if _is_postgres() else f"SQLite ({DB_PATH})"
-        print(f"Initialized {backend}")
+# �

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import owner_pill %}
-{% block title %}AM Assignment Audit · TruAge Pulse{% endblock %}
+{% block title %}Account Management · TruAge Pulse{% endblock %}
 
 {% block content %}
 
@@ -8,7 +8,7 @@
   <div class="eyebrow">Audit · v0.4 · {{ r.generated_at }} · <a href="?fresh=1" style="color: var(--ink-faint); text-decoration: underline;">refresh from HubSpot</a></div>
   <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;">
     <div>
-      <h1>Account Manager Assignment Audit</h1>
+      <h1>TruAge Account Management</h1>
       <p class="subtitle">Page 1: findings. Page 2: data anomaly punch list.</p>
     </div>
     <a href="/audit.html" class="download-btn"
@@ -275,3 +275,4 @@
 </section>
 
 {% endblock %}
+        

@@ -9,20 +9,14 @@
 <body>
 
 <nav class="topnav">
-  <span class="brand">TruAge Pulse</span>
-  <a href="{{ url_for('audit_view') }}" class="{% if request.endpoint == 'audit_view' %}active{% endif %}">AM Audit</a>
+  <span class="brand">
+    <svg class="brand-icon" viewBox="0 0 24 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <polyline points="0,7 4,7 6,1 8,13 10.5,5 12,9 14,7 18,7 20,3 22,7 24,7"
+                stroke="#36ECDE" stroke-width="2" fill="none"
+                stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    TruAge Pulse
+  </span>
+  <a href="{{ url_for('audit_view') }}" class="{% if request.endpoint == 'audit_view' %}active{% endif %}">Account Management</a>
   <a href="{{ url_for('daily_view') }}" class="{% if request.endpoint == 'daily_view' %}active{% endif %}">Daily Pulse</a>
-  <a href="{{ url_for('dictionary_view') }}" class="{% if request.endpoint == 'dictionary_view' %}active{% endif %}">Dictionary</a>
-  <a href="{{ url_for('settings_view') }}" class="{% if request.endpoint == 'settings_view' %}active{% endif %}">Settings</a>
-</nav>
-
-<div class="wrap">
-  {% block content %}{% endblock %}
-
-  <footer>
-    <p>TruAge Pulse · v0.4 · Source: HubSpot via Private App</p>
-  </footer>
-</div>
-
-</body>
-</html>
+  <a href="{{ url_for('dictionary_view') }}" class="{% if request.endpoint == 'diction
