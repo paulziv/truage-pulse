@@ -1,5 +1,5 @@
 """
-Storage abstraction. SQLite locally, Postgres in production.
+Storage abstraction. SQLite locally, Postgres in production (via DATABASE_URL).
 
 Uses a tiny schema — settings (key/value), score_history (date/report/score),
 and rules_of_org (markdown notes maintained on the settings page).
@@ -16,15 +16,22 @@ from datetime import date
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "pulse.db"
 
+# True when DATABASE_URL is set to a Postgres connection string
+def _is_postgres() -> bool:
+    return os.environ.get("DATABASE_URL", "").startswith("postgres")
+
+
+def _ph() -> str:
+    """Return the correct parameter placeholder for the active backend."""
+    return "%s" if _is_postgres() else "?"
+
 
 @contextmanager
 def get_conn():
-    """Yield a DB connection. SQLite for now; swap on DATABASE_URL later."""
-    db_url = os.environ.get("DATABASE_URL", "")
-    if db_url.startswith("postgres"):
-        # Lazy import so SQLite-only dev doesn't need psycopg2
-        import psycopg2  # type: ignore
-        conn = psycopg2.connect(db_url)
+    """Yield a DB connection. SQLite for local dev; Postgres in production."""
+    if _is_postgres():
+        import psycopg2  # type: ignore  # lazy import — not needed for local dev
+        conn = psycopg2.connect(os.environ["DATABASE_URL"])
         try:
             yield conn
             conn.commit()
@@ -42,59 +49,70 @@ def get_conn():
 
 
 def init_db():
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.executescript("""
-        CREATE TABLE IF NOT EXISTS settings (
+    """Create tables if they don't exist. Works for both SQLite and Postgres."""
+    pg = _is_postgres()
+
+    # AUTOINCREMENT is SQLite-only; Postgres uses SERIAL
+    serial = "SERIAL" if pg else "INTEGER"
+    autoincrement = "" if pg else " AUTOINCREMENT"
+
+    statements = [
+        """CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS score_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        )""",
+        f"""CREATE TABLE IF NOT EXISTS score_history (
+            id {serial} PRIMARY KEY{autoincrement},
             report_name TEXT NOT NULL,
             run_date TEXT NOT NULL,
             score REAL NOT NULL,
             details TEXT,
             UNIQUE(report_name, run_date)
-        );
-
-        CREATE TABLE IF NOT EXISTS rules_of_org (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        )""",
+        f"""CREATE TABLE IF NOT EXISTS rules_of_org (
+            id {serial} PRIMARY KEY{autoincrement},
             rule TEXT NOT NULL,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             active INTEGER NOT NULL DEFAULT 1
-        );
-
-        CREATE TABLE IF NOT EXISTS report_writer_questions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        )""",
+        f"""CREATE TABLE IF NOT EXISTS report_writer_questions (
+            id {serial} PRIMARY KEY{autoincrement},
             question TEXT NOT NULL,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             answered_at TEXT,
             answer TEXT
-        );
-        """)
+        )""",
+    ]
 
-        # Seed default rules — these are the decisions captured in our conversation
-        defaults = [
-            "AMs in active rotation: Eddie McFarlane, Megan Terry, Lisa Rountree.",
-            "Patrick Abernathy is Support Manager. He knows accounts but should not manage them. His contacts roll to the company AM.",
-            "Lisa LoBello Reynolds is AM for NACS Foundation (separate org in same HubSpot environment).",
-            "Grant Bleecher separated from TruAge. His records reassign to Stephanie Sikorski (CEO) for board-relevant accounts.",
-            "Bryan Esser separated from TruAge. His records reassign to Patrick Abernathy.",
-            "Exception for Swisher: Chris Howard and Josh Harrison contacts stay with Eddie (day-to-day relationship). The Swisher company itself moves to Stephanie.",
-        ]
+    ph = _ph()
+    defaults = [
+        "AMs in active rotation: Eddie McFarlane, Megan Terry, Lisa Rountree.",
+        "Patrick Abernathy is Support Manager. He knows accounts but should not manage them. His contacts roll to the company AM.",
+        "Lisa LoBello Reynolds is AM for NACS Foundation (separate org in same HubSpot environment).",
+        "Grant Bleecher separated from TruAge. His records reassign to Stephanie Sikorski (CEO) for board-relevant accounts.",
+        "Bryan Esser separated from TruAge. His records reassign to Patrick Abernathy.",
+        "Exception for Swisher: Chris Howard and Josh Harrison contacts stay with Eddie (day-to-day relationship). The Swisher company itself moves to Stephanie.",
+    ]
+
+    with get_conn() as conn:
+        cur = conn.cursor()
+        for stmt in statements:
+            cur.execute(stmt)
         cur.execute("SELECT COUNT(*) FROM rules_of_org")
-        if cur.fetchone()[0] == 0:
+        row = cur.fetchone()
+        count = row[0] if isinstance(row, tuple) else row["count"]
+        if count == 0:
             for rule in defaults:
-                cur.execute("INSERT INTO rules_of_org (rule) VALUES (?)", (rule,))
+                cur.execute(f"INSERT INTO rules_of_org (rule) VALUES ({ph})", (rule,))
 
 
 # ── Settings ─────────────────────────────────────────────────────────────────
+
 def get_setting(key: str, default=None):
+    ph = _ph()
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT value FROM settings WHERE key = ?", (key,))
+        cur.execute(f"SELECT value FROM settings WHERE key = {ph}", (key,))
         row = cur.fetchone()
         if row is None:
             return default
@@ -108,45 +126,65 @@ def get_setting(key: str, default=None):
 def set_setting(key: str, value) -> None:
     if not isinstance(value, str):
         value = json.dumps(value)
+    ph = _ph()
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-            (key, value),
-        )
+        if _is_postgres():
+            cur.execute(
+                f"INSERT INTO settings (key, value) VALUES ({ph}, {ph}) "
+                f"ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                (key, value),
+            )
+        else:
+            cur.execute(
+                f"INSERT OR REPLACE INTO settings (key, value) VALUES ({ph}, {ph})",
+                (key, value),
+            )
 
 
 # ── Score history ────────────────────────────────────────────────────────────
+
 def record_score(report_name: str, score: float, details: dict | None = None) -> None:
+    ph = _ph()
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute(
-            "INSERT OR REPLACE INTO score_history (report_name, run_date, score, details) "
-            "VALUES (?, ?, ?, ?)",
-            (report_name, date.today().isoformat(), score, json.dumps(details or {})),
-        )
+        if _is_postgres():
+            cur.execute(
+                f"INSERT INTO score_history (report_name, run_date, score, details) "
+                f"VALUES ({ph}, {ph}, {ph}, {ph}) "
+                f"ON CONFLICT (report_name, run_date) DO UPDATE SET score = EXCLUDED.score, details = EXCLUDED.details",
+                (report_name, date.today().isoformat(), score, json.dumps(details or {})),
+            )
+        else:
+            cur.execute(
+                f"INSERT OR REPLACE INTO score_history (report_name, run_date, score, details) "
+                f"VALUES ({ph}, {ph}, {ph}, {ph})",
+                (report_name, date.today().isoformat(), score, json.dumps(details or {})),
+            )
 
 
 def get_score_history(report_name: str, limit: int = 30) -> list[dict]:
+    ph = _ph()
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute(
-            "SELECT run_date, score, details FROM score_history "
-            "WHERE report_name = ? ORDER BY run_date DESC LIMIT ?",
+            f"SELECT run_date, score, details FROM score_history "
+            f"WHERE report_name = {ph} ORDER BY run_date DESC LIMIT {ph}",
             (report_name, limit),
         )
         rows = cur.fetchall()
         return [
             {
                 "run_date": r[0] if isinstance(r, tuple) else r["run_date"],
-                "score": r[1] if isinstance(r, tuple) else r["score"],
-                "details": json.loads(r[2] if isinstance(r, tuple) else r["details"] or "{}"),
+                "score":    r[1] if isinstance(r, tuple) else r["score"],
+                "details":  json.loads(r[2] if isinstance(r, tuple) else r["details"] or "{}"),
             }
             for r in rows
         ]
 
 
 # ── Rules of org ─────────────────────────────────────────────────────────────
+
 def list_rules() -> list[dict]:
     with get_conn() as conn:
         cur = conn.cursor()
@@ -155,8 +193,8 @@ def list_rules() -> list[dict]:
         )
         return [
             {
-                "id": r[0] if isinstance(r, tuple) else r["id"],
-                "rule": r[1] if isinstance(r, tuple) else r["rule"],
+                "id":         r[0] if isinstance(r, tuple) else r["id"],
+                "rule":       r[1] if isinstance(r, tuple) else r["rule"],
                 "created_at": r[2] if isinstance(r, tuple) else r["created_at"],
             }
             for r in cur.fetchall()
@@ -164,12 +202,14 @@ def list_rules() -> list[dict]:
 
 
 def add_rule(rule: str) -> None:
+    ph = _ph()
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute("INSERT INTO rules_of_org (rule) VALUES (?)", (rule,))
+        cur.execute(f"INSERT INTO rules_of_org (rule) VALUES ({ph})", (rule,))
 
 
 # ── Report writer questions ──────────────────────────────────────────────────
+
 def list_open_questions() -> list[dict]:
     with get_conn() as conn:
         cur = conn.cursor()
@@ -179,8 +219,8 @@ def list_open_questions() -> list[dict]:
         )
         return [
             {
-                "id": r[0] if isinstance(r, tuple) else r["id"],
-                "question": r[1] if isinstance(r, tuple) else r["question"],
+                "id":         r[0] if isinstance(r, tuple) else r["id"],
+                "question":   r[1] if isinstance(r, tuple) else r["question"],
                 "created_at": r[2] if isinstance(r, tuple) else r["created_at"],
             }
             for r in cur.fetchall()
@@ -188,10 +228,11 @@ def list_open_questions() -> list[dict]:
 
 
 def add_question(question: str) -> None:
+    ph = _ph()
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO report_writer_questions (question) VALUES (?)", (question,)
+            f"INSERT INTO report_writer_questions (question) VALUES ({ph})", (question,)
         )
 
 
@@ -202,4 +243,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.init:
         init_db()
-        print(f"Initialized {DB_PATH}")
+        backend = "Postgres" if _is_postgres() else f"SQLite ({DB_PATH})"
+        print(f"Initialized {backend}")
