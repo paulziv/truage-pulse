@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Settings · TruAge Pulse{% endblock %}
+{% block content %}
+
+<header class="page-header">
+  <div class="eyebrow">Settings</div>
+  <h1>TruAge Pulse — Settings</h1>
+  <p class="subtitle">Rules, questions, schedule, recipients.</p>
+</header>
+
+<h2>Rules of the org</h2>
+<p>Decisions that govern how reports interpret the data. Edited here; surfaced on the audit page 2.</p>
+
+{% if rules %}
+<ul>
+  {% for r in rules %}
+    <li>{{ r.rule }} <em style="color: var(--ink-faint); font-size: 12px;">— added {{ r.created_at }}</em></li>
+  {% endfor %}
+</ul>
+{% else %}
+<p><em>No rules yet.</em></p>
+{% endif %}
+
+<form method="POST" class="inline">
+  <input type="hidden" name="action" value="add_rule">
+  <input type="text" name="rule" placeholder="e.g., Patrick Abernathy is Support Manager, not an AM." required>
+  <button type="submit">Add rule</button>
+</form>
+
+
+<h2>Report writer questions</h2>
+<p>Open questions that affect how reports are built. Tracked until answered. Soon: email answers in.</p>
+
+{% if questions %}
+<ul>
+  {% for q in questions %}
+    <li>{{ q.question }} <em style="color: var(--ink-faint); font-size: 12px;">— opened {{ q.created_at }}</em></li>
+  {% endfor %}
+</ul>
+{% else %}
+<p><em>No open questions.</em></p>
+{% endif %}
+
+<form method="POST" class="inline">
+  <input type="hidden" name="action" value="add_question">
+  <input type="text" name="question" placeholder="e.g., What is the EOY 2026 doors target curve?" required>
+  <button type="submit">Add question</button>
+</form>
+
+
+<h2>Send schedule (display only — wiring deferred)</h2>
+<table>
+  <thead><tr><th>Report</th><th>Schedule</th></tr></thead>
+  <tbody>
+    <tr><td>AM Audit</td><td>{{ send_schedule.get('audit', '—') }}</td></tr>
+    <tr><td>Daily Pulse</td><td>{{ send_schedule.get('daily', '—') }}</td></tr>
+  </tbody>
+</table>
+<p style="font-size: 13px; color: var(--ink-soft);">Scheduled send will be wired up when Postmark is connected and Railway cron is configured.</p>
+
+
+<h2>Recipients (display only — wiring deferred)</h2>
+<table>
+  <thead><tr><th>Report</th><th>Recipients</th></tr></thead>
+  <tbody>
+    <tr><td>AM Audit</td><td>{% if recipients.get('audit') %}{{ recipients.audit|join(', ') }}{% else %}<em>not configured</em>{% endif %}</td></tr>
+    <tr><td>Daily Pulse</td><td>{% if recipients.get('daily') %}{{ recipients.daily|join(', ') }}{% else %}<em>not configured</em>{% endif %}</td></tr>
+  </tbody>
+</table>
+
+
+{% endblock %}

@@ -1,0 +1,13 @@
+version: "3.3"
+
+services:
+  pulse:
+    build: .
+    container_name: truage-pulse
+    restart: unless-stopped
+    ports:
+      - "8993:5000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data

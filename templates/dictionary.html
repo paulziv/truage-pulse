@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% from "_macros.html" import owner_pill %}
+{% block title %}Data Dictionary · TruAge Pulse{% endblock %}
+{% block content %}
+
+<header class="page-header">
+  <div class="eyebrow">Data Dictionary · v0.1 · {{ d.generated_at }}</div>
+  <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;">
+    <div>
+      <h1>TruAge HubSpot Data Dictionary</h1>
+      <p class="subtitle">Field catalog, pipelines, owners, and shared metric definitions.</p>
+    </div>
+    <a href="/dictionary.html" class="download-btn"
+       style="white-space: nowrap; padding: 10px 16px; background: var(--accent); color: white;
+              text-decoration: none; border-radius: 4px; font-size: 13px; font-weight: 600;
+              margin-top: 8px;">📥 Download as HTML</a>
+  </div>
+</header>
+
+<h2>Owner roster</h2>
+<table>
+  <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Email</th></tr></thead>
+  <tbody>
+  {% for oid, info in d.owner_roster.items() %}
+    {% if info.role != 'Other' %}
+    <tr>
+      <td>{{ owner_pill(oid, d.owner_roster) }} {{ info.name }}</td>
+      <td>{{ info.role }}</td>
+      <td>{% if info.active %}<span class="status status-clean">Active</span>{% else %}<span class="status status-conflict">Inactive</span>{% endif %}</td>
+      <td style="font-size: 13px; color: var(--ink-soft);">{{ info.email or '—' }}</td>
+    </tr>
+    {% endif %}
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Pipelines</h2>
+<table>
+  <thead><tr><th>Pipeline ID</th><th>Name</th><th>Notes</th></tr></thead>
+  <tbody>
+    {% for pid, name, note in d.pipelines %}
+    <tr><td><code>{{ pid }}</code></td><td><strong>{{ name }}</strong></td><td>{{ note }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Deal stages (default pipeline)</h2>
+<table>
+  <thead><tr><th>Stage ID</th><th>Label</th><th>Notes</th></tr></thead>
+  <tbody>
+    {% for pipe, sid, label, note in d.stages %}
+    <tr><td><code>{{ sid }}</code></td><td>{{ label }}</td><td>{{ note }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Field catalog</h2>
+<details open>
+<summary>Show field catalog ({{ d.field_catalog|length }} fields)</summary>
+<table>
+  <thead><tr><th>Object</th><th>Property</th><th>Type</th><th>Description</th><th>Used by</th><th>Notes</th></tr></thead>
+  <tbody>
+    {% for obj, prop, type, desc, used_by, note in d.field_catalog %}
+    <tr>
+      <td>{{ obj }}</td>
+      <td><code>{{ prop }}</code></td>
+      <td style="font-size: 12px; color: var(--ink-faint);">{{ type }}</td>
+      <td>{{ desc }}</td>
+      <td style="font-size: 12px; color: var(--ink-faint);">{{ used_by }}</td>
+      <td style="font-size: 12px; color: var(--ink-soft);">{{ note }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</details>
+
+<h2>Shared metric definitions</h2>
+<table>
+  <thead><tr><th>Metric</th><th>Definition</th><th>Source field(s)</th></tr></thead>
+  <tbody>
+    {% for name, defn, src in d.shared_metrics %}
+    <tr><td><strong>{{ name }}</strong></td><td>{{ defn }}</td><td><code style="font-size: 12px;">{{ src }}</code></td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Open questions</h2>
+<p>Unresolved data definitions that affect multiple reports. Tracked here so anyone consulting the dictionary sees what's pending.</p>
+<ol>
+  {% for q in d.open_questions %}
+  <li>{{ q }}</li>
+  {% endfor %}
+</ol>
+
+{% endblock %}

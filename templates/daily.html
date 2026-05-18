@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Daily Pulse · TruAge Pulse{% endblock %}
+{% block content %}
+
+<header class="page-header">
+  <div class="eyebrow">Daily Sales Pulse · v0.1 · {{ d.generated_at }}</div>
+  <h1>Daily Sales Pulse</h1>
+  <p class="subtitle">Manager-facing EOD report.</p>
+</header>
+
+<div class="stub-banner">
+  <h2>Not yet wired up</h2>
+  <p>{{ d.message }}</p>
+  <p style="font-size: 13px; color: var(--ink-soft); margin-top: 12px;">
+    Build spec exists in repo root as <code>DAILY_PULSE_SPEC.md</code>. Will be implemented after the AM Audit is in production.
+  </p>
+</div>
+
+{% endblock %}

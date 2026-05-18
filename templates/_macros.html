@@ -1,0 +1,24 @@
+{# Renders an owner ID as a colored pill label. #}
+{% macro owner_pill(owner_id, roster, count=None) %}
+  {%- if not owner_id -%}
+    <span class="pill pill-none">none{% if count %}<span class="ct">{{ count }}</span>{% endif %}</span>
+  {%- else -%}
+    {%- set o = roster.get(owner_id|string, {}) -%}
+    {%- set name = o.get('name', 'Unknown') -%}
+    {%- set first = name.split(' ')[0]|lower -%}
+    {%- set css_class -%}
+      {%- if first == 'eddie' -%}pill-eddie
+      {%- elif first == 'megan' -%}pill-megan
+      {%- elif first == 'lisa' and 'lobello' in name|lower -%}pill-lia
+      {%- elif first == 'lisa' -%}pill-lisa
+      {%- elif first == 'stephanie' -%}pill-stephanie
+      {%- elif first == 'patrick' -%}pill-patrick
+      {%- elif first == 'lia' -%}pill-lia
+      {%- elif first == 'grant' -%}pill-grant
+      {%- elif first == 'bryan' -%}pill-bryan
+      {%- else -%}pill-other
+      {%- endif -%}
+    {%- endset -%}
+    <span class="pill {{ css_class }}">{{ first|capitalize }}{% if count %}<span class="ct">{{ count }}</span>{% endif %}</span>
+  {%- endif -%}
+{% endmacro %}

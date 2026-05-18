@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+{% from "_macros.html" import owner_pill %}
+{% block title %}AM Assignment Audit · TruAge Pulse{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div class="eyebrow">Audit · v0.4 · {{ r.generated_at }} · <a href="?fresh=1" style="color: var(--ink-faint); text-decoration: underline;">refresh from HubSpot</a></div>
+  <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;">
+    <div>
+      <h1>Account Manager Assignment Audit</h1>
+      <p class="subtitle">Page 1: findings. Page 2: data anomaly punch list.</p>
+    </div>
+    <a href="/audit.html" class="download-btn"
+       style="white-space: nowrap; padding: 10px 16px; background: var(--accent); color: white;
+              text-decoration: none; border-radius: 4px; font-size: 13px; font-weight: 600;
+              margin-top: 8px;">📥 Download as HTML</a>
+  </div>
+</header>
+
+<!-- ============== SCORE BLOCK (SAT-style) ============== -->
+<div class="score-block">
+  <div>
+    <div class="score-label">AM Hygiene Score</div>
+    <div class="score-num">{{ r.hygiene_score.score|int }}<span class="score-out-of"> / 100</span></div>
+  </div>
+  <div>
+    <p class="score-explanation"><strong>{{ r.hygiene_score.label }}.</strong> {{ r.score_explanation }}</p>
+  </div>
+  <div>
+    <div class="status-circle {{ r.hygiene_score.status }}">{{ r.hygiene_score.icon }}</div>
+    <div class="status-circle-label">{{ r.hygiene_score.label }}</div>
+  </div>
+</div>
+
+<!-- ============== PAGE 1: FINDINGS ============== -->
+<section class="page">
+  <span class="page-tag">Page 1 of 2 · Findings</span>
+
+  <div class="summary-band">
+    <div class="summary-card good">
+      <div class="label">Clean</div>
+      <div class="value">{{ r.counts.clean }}</div>
+      <div class="sub">single owner across all records</div>
+    </div>
+    <div class="summary-card warn">
+      <div class="label">Partial</div>
+      <div class="value">{{ r.counts.partial }}</div>
+      <div class="sub">company AM right, some contacts unassigned</div>
+    </div>
+    <div class="summary-card warn">
+      <div class="label">Overlap</div>
+      <div class="value">{{ r.counts.overlap }}</div>
+      <div class="sub">multiple AMs across contacts</div>
+    </div>
+    <div class="summary-card bad">
+      <div class="label">Conflict</div>
+      <div class="value">{{ r.counts.conflict }}</div>
+      <div class="sub">company owner ≠ any contact</div>
+    </div>
+    <div class="summary-card bad">
+      <div class="label">Orphaned</div>
+      <div class="value">{{ r.counts.orphaned }}</div>
+      <div class="sub">no AM at all</div>
+    </div>
+  </div>
+
+  <h3>Owners in the data</h3>
+  <div class="owner-key">
+    {% for oid, info in r.owner_roster.items() if info.role != 'Other' %}
+      {{ owner_pill(oid, r.owner_roster) }}
+      <span style="font-size: 11px; color: var(--ink-faint); margin-right: 8px;">{{ info.role }}</span>
+    {% endfor %}
+  </div>
+
+  {% if r.accounts_by_category.conflict %}
+  <h3>Conflict ({{ r.counts.conflict }}) — company owner doesn't match any contact</h3>
+  <table>
+    <thead><tr><th>Account</th><th>Company Owner</th><th>Contact Owners</th><th class="num">Contacts</th><th class="num">Deals</th></tr></thead>
+    <tbody>
+    {% for a in r.accounts_by_category.conflict %}
+      <tr>
+        <td class="acct">{{ a.name }}</td>
+        <td>{{ owner_pill(a.company_owner_id, r.owner_roster) }}</td>
+        <td>
+          {% for oid, ct in a.contact_owner_counts.items() %}{{ owner_pill(oid, r.owner_roster, count=ct) }}{% endfor %}
+          {% if a.unowned_contact_count %}<span class="pill pill-none">none<span class="ct">{{ a.unowned_contact_count }}</span></span>{% endif %}
+        </td>
+        <td class="num">{{ a.num_contacts }}</td>
+        <td class="num">{{ a.num_deals }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if r.accounts_by_category.orphaned %}
+  <h3>Orphaned ({{ r.counts.orphaned }}) — no AM at all</h3>
+  <table>
+    <thead><tr><th>Account</th><th>Company Owner</th><th>Contact Owners</th><th class="num">Contacts</th><th class="num">Deals</th></tr></thead>
+    <tbody>
+    {% for a in r.accounts_by_category.orphaned %}
+      <tr>
+        <td class="acct">{{ a.name }}</td>
+        <td>{{ owner_pill(a.company_owner_id, r.owner_roster) }}</td>
+        <td>
+          {% for oid, ct in a.contact_owner_counts.items() %}{{ owner_pill(oid, r.owner_roster, count=ct) }}{% endfor %}
+          {% if a.unowned_contact_count %}<span class="pill pill-none">none<span class="ct">{{ a.unowned_contact_count }}</span></span>{% endif %}
+        </td>
+        <td class="num">{{ a.num_contacts }}</td>
+        <td class="num">{{ a.num_deals }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if r.accounts_by_category.overlap %}
+  <h3>Overlap ({{ r.counts.overlap }}) — multiple AMs across contacts</h3>
+  <table>
+    <thead><tr><th>Account</th><th>Company Owner</th><th>Contact Owners</th><th class="num">Contacts</th><th class="num">Deals</th></tr></thead>
+    <tbody>
+    {% for a in r.accounts_by_category.overlap %}
+      <tr>
+        <td class="acct">{{ a.name }}</td>
+        <td>{{ owner_pill(a.company_owner_id, r.owner_roster) }}</td>
+        <td>
+          {% for oid, ct in a.contact_owner_counts.items() %}{{ owner_pill(oid, r.owner_roster, count=ct) }}{% endfor %}
+          {% if a.unowned_contact_count %}<span class="pill pill-none">none<span class="ct">{{ a.unowned_contact_count }}</span></span>{% endif %}
+        </td>
+        <td class="num">{{ a.num_contacts }}</td>
+        <td class="num">{{ a.num_deals }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if r.accounts_by_category.partial %}
+  <h3>Partial ({{ r.counts.partial }}) — company AM correct, some cleanup needed</h3>
+  <details>
+    <summary>Show partial accounts</summary>
+    <table>
+      <thead><tr><th>Account</th><th>Company Owner</th><th>Contact Owners</th><th class="num">Contacts</th><th class="num">Deals</th></tr></thead>
+      <tbody>
+      {% for a in r.accounts_by_category.partial %}
+        <tr>
+          <td class="acct">{{ a.name }}</td>
+          <td>{{ owner_pill(a.company_owner_id, r.owner_roster) }}</td>
+          <td>
+            {% for oid, ct in a.contact_owner_counts.items() %}{{ owner_pill(oid, r.owner_roster, count=ct) }}{% endfor %}
+            {% if a.unowned_contact_count %}<span class="pill pill-none">none<span class="ct">{{ a.unowned_contact_count }}</span></span>{% endif %}
+          </td>
+          <td class="num">{{ a.num_contacts }}</td>
+          <td class="num">{{ a.num_deals }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </details>
+  {% endif %}
+
+  {% if r.accounts_by_category.clean %}
+  <h3>Clean ({{ r.counts.clean }}) — no action needed</h3>
+  <details>
+    <summary>Show clean accounts</summary>
+    <table>
+      <thead><tr><th>Account</th><th>Owner</th><th class="num">Contacts</th><th class="num">Deals</th></tr></thead>
+      <tbody>
+      {% for a in r.accounts_by_category.clean %}
+        <tr>
+          <td class="acct">{{ a.name }}</td>
+          <td>{{ owner_pill(a.company_owner_id, r.owner_roster) }}</td>
+          <td class="num">{{ a.num_contacts }}</td>
+          <td class="num">{{ a.num_deals }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </details>
+  {% endif %}
+
+</section>
+
+
+<!-- ============== PAGE 2: DATA ANOMALY ============== -->
+<section class="page">
+  <span class="page-tag">Page 2 of 2 · Data Anomaly Report</span>
+  <h2>Punch list for the data team</h2>
+  <p>One row per change the team needs to make in HubSpot. Re-run this audit and watch the list shrink.</p>
+
+  {# ── Inactive owner reassignment ─────────────────────────────────── #}
+  {% for oid, rec in r.inactive_owner_records.items() %}
+    {% if rec.companies or rec.contacts or rec.deals %}
+    <h3>Group A — {{ rec.name }}'s records (system-wide reassignment)</h3>
+    <p>{{ rec.name }} has separated. {{ rec.companies|length }} companies, {{ rec.contacts|length }} contacts, {{ rec.deals|length }} deals.</p>
+    <table>
+      <thead><tr><th>Action</th><th>Filter</th><th>From <span class="arrow">→</span> To</th><th class="num">Volume</th></tr></thead>
+      <tbody>
+        {% if rec.companies %}<tr><td><strong>Bulk reassign companies</strong></td><td>Companies owned by {{ rec.name }}</td><td>{{ owner_pill(oid, r.owner_roster) }} <span class="arrow">→</span> <em>see rules of org</em></td><td class="num">{{ rec.companies|length }}</td></tr>{% endif %}
+        {% if rec.deals %}<tr><td><strong>Bulk reassign deals</strong></td><td>Deals owned by {{ rec.name }}</td><td>{{ owner_pill(oid, r.owner_roster) }} <span class="arrow">→</span> <em>see rules of org</em></td><td class="num">{{ rec.deals|length }}</td></tr>{% endif %}
+        {% if rec.contacts %}<tr><td><strong>Bulk reassign contacts</strong></td><td>Contacts owned by {{ rec.name }}</td><td>{{ owner_pill(oid, r.owner_roster) }} <span class="arrow">→</span> <em>see rules of org</em></td><td class="num">{{ rec.contacts|length }}</td></tr>{% endif %}
+      </tbody>
+    </table>
+    {% endif %}
+  {% endfor %}
+
+  {# ── Conflict accounts requiring a decision ──────────────────────── #}
+  {% if r.accounts_by_category.conflict %}
+  <h3>Group B — Conflict accounts requiring a decision</h3>
+  <table>
+    <thead><tr><th>Account</th><th>Current state</th><th>Note</th></tr></thead>
+    <tbody>
+    {% for a in r.accounts_by_category.conflict %}
+      <tr>
+        <td class="acct">{{ a.name }}</td>
+        <td>
+          Company: {{ owner_pill(a.company_owner_id, r.owner_roster) }}<br>
+          Contacts: 
+          {% for oid, ct in a.contact_owner_counts.items() %}{{ owner_pill(oid, r.owner_roster, count=ct) }}{% endfor %}
+          {% if a.unowned_contact_count %}<span class="pill pill-none">none<span class="ct">{{ a.unowned_contact_count }}</span></span>{% endif %}
+        </td>
+        <td>{% for n in a.notes %}{{ n }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {# ── Unassigned contacts (partial accounts) ──────────────────────── #}
+  {% if r.accounts_by_category.partial %}
+  <h3>Group C — Unassigned contacts on otherwise-clean accounts</h3>
+  <table>
+    <thead><tr><th>Account</th><th>Assign owner</th><th class="num">Contacts to update</th></tr></thead>
+    <tbody>
+    {% for a in r.accounts_by_category.partial %}
+      {% if a.unowned_contact_count > 0 %}
+      <tr>
+        <td class="acct">{{ a.name }}</td>
+        <td>{{ owner_pill(a.company_owner_id, r.owner_roster) }}</td>
+        <td class="num">{{ a.unowned_contact_count }}</td>
+      </tr>
+      {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {# ── Rules of the org ────────────────────────────────────────────── #}
+  <h3>Rules of the org</h3>
+  <p>Decisions that govern how this audit interprets the data. Edit on the <a href="{{ url_for('settings_view') }}">Settings page</a>.</p>
+  {% if r.rules_of_org %}
+  <ul>
+    {% for rule in r.rules_of_org %}
+      <li>{{ rule.rule }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p><em>No rules yet. Add them on the Settings page.</em></p>
+  {% endif %}
+
+  {# ── Report writer questions ─────────────────────────────────────── #}
+  <h3>Report Writer Questions — need answers before next audit run</h3>
+  <p>Open questions that affect how this report is built. Add answers on the <a href="{{ url_for('settings_view') }}">Settings page</a>.</p>
+  {% if r.report_writer_questions %}
+  <ul>
+    {% for q in r.report_writer_questions %}
+      <li>{{ q.question }} <em style="color: var(--ink-faint); font-size: 12px;">— opened {{ q.created_at }}</em></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p><em>No open questions at this time.</em></p>
+  {% endif %}
+
+</section>
+
+{% endblock %}

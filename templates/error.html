@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Error · TruAge Pulse{% endblock %}
+{% block content %}
+
+<header class="page-header">
+  <div class="eyebrow">Error</div>
+  <h1>Something went wrong</h1>
+</header>
+
+<div class="callout">
+  <div class="callout-title">Details</div>
+  <pre style="white-space: pre-wrap;">{{ error }}</pre>
+</div>
+
+<p>Common causes:</p>
+<ul>
+  <li>HubSpot Private App token missing or invalid (check <code>.env</code>)</li>
+  <li>Token lacks required scopes (companies/contacts/deals/owners read)</li>
+  <li>HubSpot API rate limit — try again in a minute</li>
+</ul>
+
+{% endblock %}

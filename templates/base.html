@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{% block title %}TruAge Pulse{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<nav class="topnav">
+  <span class="brand">TruAge Pulse</span>
+  <a href="{{ url_for('audit_view') }}" class="{% if request.endpoint == 'audit_view' %}active{% endif %}">AM Audit</a>
+  <a href="{{ url_for('daily_view') }}" class="{% if request.endpoint == 'daily_view' %}active{% endif %}">Daily Pulse</a>
+  <a href="{{ url_for('dictionary_view') }}" class="{% if request.endpoint == 'dictionary_view' %}active{% endif %}">Dictionary</a>
+  <a href="{{ url_for('settings_view') }}" class="{% if request.endpoint == 'settings_view' %}active{% endif %}">Settings</a>
+</nav>
+
+<div class="wrap">
+  {% block content %}{% endblock %}
+
+  <footer>
+    <p>TruAge Pulse · v0.4 · Source: HubSpot via Private App</p>
+  </footer>
+</div>
+
+</body>
+</html>
