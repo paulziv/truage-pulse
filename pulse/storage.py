@@ -98,7 +98,7 @@ def init_db():
         cur = conn.cursor()
         for stmt in statements:
             cur.execute(stmt)
-        cur.execute("SELECT COUNT(*) FROM rules_of_org")
+        cur.execute("SELECT COUNT(*) AS count FROM rules_of_org")
         row = cur.fetchone()
         count = row[0] if isinstance(row, tuple) else row["count"]
         if count == 0:
