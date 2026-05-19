@@ -49,9 +49,110 @@ def health():
     return jsonify({"status": "ok", "version": "0.4.2"})
 
 
+_AUDIT_LOADING_SHELL = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>TruAge Pulse — Loading…</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+         background:#F5F0E8;min-height:100vh;display:flex;align-items:center;
+         justify-content:center;padding:2rem 1.5rem;}
+    .card{background:#fff;border:1px solid #DDD8CE;border-radius:14px;
+          padding:2.5rem 2.5rem 2rem;max-width:460px;width:100%;
+          box-shadow:0 4px 24px rgba(0,32,63,0.08);text-align:center;}
+    .ring{display:inline-block;width:48px;height:48px;margin-bottom:1.25rem;
+          border:4px solid #DDD8CE;border-top-color:#36ECDE;
+          border-radius:50%;animation:spin 0.9s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+    .msg{font-size:1.05rem;font-weight:700;color:#1A2332;margin-bottom:0.3rem;}
+    .sub{font-size:0.82rem;color:#7A7060;margin-bottom:1.75rem;}
+    .steps{text-align:left;border-top:1px solid #EDE8DF;padding-top:1.25rem;
+           display:flex;flex-direction:column;gap:0.6rem;margin-top:0.25rem;}
+    .step{display:flex;align-items:center;gap:0.75rem;font-size:0.84rem;color:#c5bdb3;}
+    .step.done{color:#087f5b;}
+    .step.active{color:#1A2332;font-weight:500;}
+    .step-icon{width:18px;flex-shrink:0;text-align:center;font-size:0.82rem;}
+    .mini-ring{width:13px;height:13px;border:2px solid #DDD8CE;
+               border-top-color:#36ECDE;border-radius:50%;
+               animation:spin 0.8s linear infinite;display:inline-block;vertical-align:middle;}
+    .warn{display:none;margin-top:1.25rem;padding:0.75rem 1rem;
+          background:#fff8e1;border:1px solid #e6b800;border-radius:8px;
+          font-size:0.82rem;color:#7a5c00;line-height:1.5;}
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="ring"></div>
+  <div class="msg" id="msg">Connecting to HubSpot&hellip;</div>
+  <div class="sub">Hang tight &mdash; this usually takes 30&ndash;45 seconds</div>
+  <div class="steps">
+    <div class="step" id="s1"><span class="step-icon">&#x25CB;</span><span>Authenticating with HubSpot API</span></div>
+    <div class="step" id="s2"><span class="step-icon">&#x25CB;</span><span>Fetching account manager records</span></div>
+    <div class="step" id="s3"><span class="step-icon">&#x25CB;</span><span>Analysing AM assignments &amp; overlaps</span></div>
+    <div class="step" id="s4"><span class="step-icon">&#x25CB;</span><span>Scoring hygiene and flagging conflicts</span></div>
+    <div class="step" id="s5"><span class="step-icon">&#x25CB;</span><span>Assembling your report</span></div>
+  </div>
+  <div class="warn" id="warn">
+    Still working&hellip; Railway may be waking up a cold service. Sit tight &mdash; it will arrive.
+  </div>
+</div>
+<script>
+  const MSGS=[
+    ["Connecting to HubSpot…","Pulling your latest account data"],
+    ["Crunching the numbers…","Counting AMs, checking assignments"],
+    ["Scanning account records…","Matching owners to territories"],
+    ["Checking assignment conflicts…","Hang tight — almost done"],
+    ["Almost there…","Building your report now"],
+  ];
+  const STEP_MS=[600,9000,19000,30000,41000];
+  let i=0;
+  const msgEl=document.getElementById('msg');
+  function cycleMsgs(){
+    const[h]=MSGS[i%MSGS.length]; msgEl.textContent=h; i++;
+    setTimeout(cycleMsgs,3500);
+  }
+  cycleMsgs();
+  function activate(n){
+    if(n>1){const p=document.getElementById('s'+(n-1));if(p){p.className='step done';p.querySelector('.step-icon').innerHTML='&#x2713;';}}
+    const el=document.getElementById('s'+n);if(el){el.className='step active';el.querySelector('.step-icon').innerHTML='<span class="mini-ring"></span>';}
+  }
+  STEP_MS.forEach((ms,idx)=>setTimeout(()=>activate(idx+1),ms));
+  setTimeout(()=>{document.getElementById('warn').style.display='block';},50000);
+  // Fetch the report; when ready, swap the entire document
+  const url = '/audit/report' + window.location.search;
+  fetch(url)
+    .then(r=>{
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      return r.text();
+    })
+    .then(html=>{
+      document.open(); document.write(html); document.close();
+    })
+    .catch(err=>{
+      msgEl.textContent='Could not load report';
+      document.querySelector('.sub').textContent=err.message+' — try refreshing the page.';
+    });
+</script>
+</body>
+</html>"""
+
+
 @app.route("/audit")
 def audit_view():
-    """The AM Assignment Audit — page 1 (findings) + page 2 (anomaly punch list)."""
+    """Return loading shell immediately; JS fetches /audit/report in the background."""
+    if request.args.get("fresh"):
+        audit.build_audit.cache_clear()
+    return _AUDIT_LOADING_SHELL, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
+@app.route("/audit/report")
+def audit_report():
+    """The AM Assignment Audit data endpoint — called by the loading shell."""
     if request.args.get("fresh"):
         audit.build_audit.cache_clear()
     try:
