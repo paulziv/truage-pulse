@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from pulse import audit, daily, dictionary, storage, export  # noqa: E402
+from pulse import alerting  # noqa: E402
 from pulse.hubspot_client import HubSpotError  # noqa: E402
 
 logging.basicConfig(
@@ -29,6 +30,22 @@ log = logging.getLogger("truage-pulse")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-change-me")
+
+
+def _handle_pipeline_error(source: str, exc: Exception):
+    """Log, persist to the error_log table, and email an alert for any
+    pipeline/route crash — not just the explicitly-typed HubSpotError cases.
+    Returns a rendered error page (502) so the caller can `return` it directly.
+    """
+    import traceback as tb_module
+    tb_text = "".join(tb_module.format_exception(type(exc), exc, exc.__traceback__))
+    log.error("%s crashed: %s", source, exc)
+    try:
+        storage.record_error(source, str(exc), tb_text)
+    except Exception as store_exc:
+        log.warning("Could not record error to DB: %s", store_exc)
+    alerting.send_crash_alert(source, str(exc), exc)
+    return render_template("error.html", error=str(exc)), 502
 
 
 # Ensure DB exists before serving any traffic
@@ -47,6 +64,15 @@ def root():
 @app.route("/health")
 def health():
     return jsonify({"status": "ok", "version": "0.4.2"})
+
+
+@app.route("/errors")
+def errors_view():
+    """Recent crashes across all routes/pipelines — durable (Postgres in
+    production), for reviewing what happened beyond what's convenient to
+    scroll through in raw Railway logs."""
+    limit = request.args.get("limit", default=50, type=int)
+    return jsonify(storage.get_recent_errors(limit=limit))
 
 
 _AUDIT_LOADING_SHELL = """<!DOCTYPE html>
@@ -159,6 +185,8 @@ def audit_report():
         report = audit.build_audit()
     except HubSpotError as e:
         return render_template("error.html", error=str(e)), 502
+    except Exception as e:
+        return _handle_pipeline_error("audit_report", e)
     return render_template("audit.html", r=report)
 
 
@@ -169,6 +197,8 @@ def audit_export():
         report = audit.build_audit()
     except HubSpotError as e:
         return render_template("error.html", error=str(e)), 502
+    except Exception as e:
+        return _handle_pipeline_error("audit_export", e)
     html = render_template("audit.html", r=report)
     standalone = export.to_standalone_html(html)
     return Response(
@@ -183,14 +213,20 @@ def audit_export():
 @app.route("/daily")
 def daily_view():
     """Daily Sales Pulse — stub for v1."""
-    data = daily.build_daily()
+    try:
+        data = daily.build_daily()
+    except Exception as e:
+        return _handle_pipeline_error("daily_view", e)
     return render_template("daily.html", d=data)
 
 
 @app.route("/daily.html")
 def daily_export():
     """Downloadable Daily Pulse snapshot."""
-    data = daily.build_daily()
+    try:
+        data = daily.build_daily()
+    except Exception as e:
+        return _handle_pipeline_error("daily_export", e)
     html = render_template("daily.html", d=data)
     standalone = export.to_standalone_html(html)
     return Response(
@@ -205,14 +241,20 @@ def daily_export():
 @app.route("/dictionary")
 def dictionary_view():
     """HubSpot Data Dictionary."""
-    data = dictionary.build_dictionary()
+    try:
+        data = dictionary.build_dictionary()
+    except Exception as e:
+        return _handle_pipeline_error("dictionary_view", e)
     return render_template("dictionary.html", d=data)
 
 
 @app.route("/dictionary.html")
 def dictionary_export():
     """Downloadable Data Dictionary snapshot."""
-    data = dictionary.build_dictionary()
+    try:
+        data = dictionary.build_dictionary()
+    except Exception as e:
+        return _handle_pipeline_error("dictionary_export", e)
     html = render_template("dictionary.html", d=data)
     standalone = export.to_standalone_html(html)
     return Response(

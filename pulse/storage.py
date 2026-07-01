@@ -82,6 +82,13 @@ def init_db():
             answered_at TEXT,
             answer TEXT
         )""",
+        f"""CREATE TABLE IF NOT EXISTS error_log (
+            id {serial} PRIMARY KEY{autoincrement},
+            source TEXT NOT NULL,
+            message TEXT NOT NULL,
+            traceback TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )""",
     ]
 
     ph = _ph()
@@ -206,6 +213,40 @@ def add_rule(rule: str) -> None:
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute(f"INSERT INTO rules_of_org (rule) VALUES ({ph})", (rule,))
+
+
+# ── Error log ────────────────────────────────────────────────────────────────
+# A reviewable, durable record of pipeline/route crashes — independent of
+# scrolling through raw Railway logs. Persists in Postgres in production
+# (survives redeploys), SQLite locally.
+
+def record_error(source: str, message: str, traceback_text: str | None = None) -> None:
+    ph = _ph()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"INSERT INTO error_log (source, message, traceback) VALUES ({ph}, {ph}, {ph})",
+            (source, message[:4000], (traceback_text or "")[:8000]),
+        )
+
+
+def get_recent_errors(limit: int = 50) -> list[dict]:
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, source, message, traceback, created_at FROM error_log "
+            "ORDER BY id DESC LIMIT " + str(int(limit))
+        )
+        return [
+            {
+                "id":         r[0] if isinstance(r, tuple) else r["id"],
+                "source":     r[1] if isinstance(r, tuple) else r["source"],
+                "message":    r[2] if isinstance(r, tuple) else r["message"],
+                "traceback":  r[3] if isinstance(r, tuple) else r["traceback"],
+                "created_at": r[4] if isinstance(r, tuple) else r["created_at"],
+            }
+            for r in cur.fetchall()
+        ]
 
 
 # �
