@@ -110,7 +110,11 @@ def fetch_inactive_owner_records(
 def fetch_contacts_for_company(
     company_id: str, client: HubSpotClient | None = None
 ) -> list[dict]:
-    """All contacts associated with a given company. Uses associations endpoint."""
+    """
+    All contacts associated with a given company. Uses the single-record
+    associations endpoint — fine for a one-off lookup, but hydrate_contacts()
+    no longer calls this in a loop; it uses the batched client methods instead.
+    """
     client = client or get_client()
     contact_ids = client.get_associations("companies", company_id, "contacts")
     if not contact_ids:
@@ -133,10 +137,41 @@ def fetch_contacts_for_company(
 def hydrate_contacts(
     companies: list[CompanyRecord], client: HubSpotClient | None = None
 ) -> None:
-    """Mutate companies in place, populating .contacts. Per-company association call."""
+    """
+    Mutate companies in place, populating .contacts.
+
+    Batched: one associations batch/read call for all companies at once
+    (chunked at 1,000), then one contacts batch/read call for the union of
+    contact ids (chunked at 100) — replacing what was previously a per-company
+    associations GET + per-company search, i.e. up to ~2 serial HubSpot calls
+    for every company in the priority population (71 calls observed in
+    production, the trigger for a 429 burst shared with the daily activation
+    report's cron run).
+    """
     client = client or get_client()
+    if not companies:
+        return
+
+    company_ids = [c.id for c in companies]
+    assoc_map = client.batch_read_associations("companies", "contacts", company_ids)
+
+    all_contact_ids = sorted({cid for ids in assoc_map.values() for cid in ids})
+    contact_records = client.batch_read_objects(
+        "contacts",
+        all_contact_ids,
+        properties=["firstname", "lastname", "email", "hubspot_owner_id"],
+    )
+    contacts_by_id = {
+        str(r["id"]): {"id": str(r["id"]), **r.get("properties", {})}
+        for r in contact_records
+    }
+
     for c in companies:
-        c.contacts = fetch_contacts_for_company(c.id, client)
+        c.contacts = [
+            contacts_by_id[cid]
+            for cid in assoc_map.get(c.id, [])
+            if cid in contacts_by_id
+        ]
 
 
 # ── Owner roster ─────────────────────────────────────────────────────────────

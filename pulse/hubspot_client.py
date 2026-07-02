@@ -141,6 +141,74 @@ class HubSpotClient:
         data = self._request("GET", path)
         return [str(r.get("toObjectId")) for r in data.get("results", [])]
 
+    def batch_read_associations(
+        self, from_type: str, to_type: str, ids: list[str | int]
+    ) -> dict[str, list[str]]:
+        """
+        Associated-object IDs for MANY source records in as few calls as possible.
+
+        Replaces N serial GETs to get_associations() (one per record) with
+        ceil(N/1000) calls to the v4 associations batch/read endpoint. HubSpot's
+        documented cap for this endpoint (effective 2025-02-10) is 1,000 ids per
+        request body: https://developers.hubspot.com/docs/api-reference/crm-associations-v4/guide
+
+        Returns {from_id: [to_id, ...]}. Every requested id gets an entry (an
+        empty list if it has no associations) so callers can index without a
+        .get(..., []) default.
+        """
+        out: dict[str, list[str]] = {str(i): [] for i in ids}
+        if not ids:
+            return out
+
+        CHUNK = 1000
+        str_ids = [str(i) for i in ids]
+        for start in range(0, len(str_ids), CHUNK):
+            inputs = [{"id": cid} for cid in str_ids[start:start + CHUNK]]
+            # A single record could in theory have >500 associations (HubSpot's
+            # per-input page size for this endpoint), so follow "after" cursors
+            # defensively. In practice no company in the AM audit gets close.
+            while inputs:
+                data = self._request(
+                    "POST",
+                    f"/crm/v4/associations/{from_type}/{to_type}/batch/read",
+                    json={"inputs": inputs},
+                )
+                next_inputs: list[dict] = []
+                for result in data.get("results", []):
+                    from_id = str(result.get("from", {}).get("id"))
+                    to_ids = [str(t.get("toObjectId")) for t in result.get("to", [])]
+                    out.setdefault(from_id, [])
+                    out[from_id].extend(to_ids)
+                    after = result.get("paging", {}).get("next", {}).get("after")
+                    if after:
+                        next_inputs.append({"id": from_id, "after": after})
+                inputs = next_inputs
+        return out
+
+    def batch_read_objects(
+        self, object_type: str, ids: list[str | int], properties: list[str]
+    ) -> list[dict]:
+        """
+        Fetch full records for MANY ids via the v3 batch/read endpoint, instead
+        of one search-with-IN-filter call per caller. HubSpot caps batch/read at
+        100 records per request body, so this chunks automatically.
+        """
+        str_ids = [str(i) for i in ids]
+        out: list[dict] = []
+        if not str_ids:
+            return out
+
+        CHUNK = 100
+        for start in range(0, len(str_ids), CHUNK):
+            chunk = str_ids[start:start + CHUNK]
+            data = self._request(
+                "POST",
+                f"/crm/v3/objects/{object_type}/batch/read",
+                json={"inputs": [{"id": cid} for cid in chunk], "properties": properties},
+            )
+            out.extend(data.get("results", []))
+        return out
+
 
 # Singleton convenience for the app
 _client: HubSpotClient | None = None
