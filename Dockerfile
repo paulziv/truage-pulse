@@ -26,6 +26,6 @@ RUN mkdir -p /app/data
 
 # Initialize the DB on first boot if missing, then start gunicorn.
 # (Idempotent — init_db uses CREATE TABLE IF NOT EXISTS.)
-CMD ["sh", "-c", "python -m pulse.storage --init && gunicorn app:app --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 120 --access-logfile - --error-logfile -"]
+CMD ["sh", "-c", "python -m pulse.storage --init && gunicorn app:app --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 120 --access-logfile - --error-logfile - --access-logformat '%(h)s %(l)s %(u)s %(t)s \"%(r)s\" %(s)s %(b)s \"%(f)s\" \"%(a)s\" rid=%({x-request-id}o)s'"]
 
 EXPOSE 5000

@@ -35,6 +35,16 @@ def _bind_request_id():
     tclog.bind_request_id(request.headers.get(tclog.REQUEST_ID_HEADER))
 
 
+@app.after_request
+def _emit_request_id(resp):
+    """Expose the correlation id on the response so gunicorn access logs (via
+    --access-logformat) and the portal can capture it under X-Request-ID."""
+    rid = tclog.current_request_id()
+    if rid:
+        resp.headers[tclog.REQUEST_ID_HEADER] = rid
+    return resp
+
+
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-change-me")
 
 
