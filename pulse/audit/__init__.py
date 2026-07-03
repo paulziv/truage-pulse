@@ -26,7 +26,11 @@ class AuditReport:
     counts: dict                         # category -> count
 
 
-@cached(ttl=300)  # 5 minutes
+# 5-minute per-replica perf cache: memoizes an expensive HubSpot pull so repeat
+# views don't re-hit the API. Ephemeral and per-process — NOT a durable cache.
+# The durable source of truth for rendered reports is the portal's Postgres
+# report_cache (see pez-portal/app/daily_cache.py).
+@cached(ttl=300)
 def build_audit() -> AuditReport:
     client = get_client()
 
