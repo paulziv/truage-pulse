@@ -10,6 +10,9 @@ WORKDIR /app
 
 # Install deps first (cached layer)
 COPY requirements.txt .
+# git is required for pip to install the truage-core dependency (git+https://…)
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
 RUN pip install -r requirements.txt
 
 # Copy the app
