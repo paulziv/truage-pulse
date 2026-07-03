@@ -22,13 +22,19 @@ from pulse import audit, daily, dictionary, storage, export  # noqa: E402
 from pulse import alerting  # noqa: E402
 from pulse.hubspot_client import HubSpotError  # noqa: E402
 
-logging.basicConfig(
-    level=os.environ.get("LOG_LEVEL", "INFO"),
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
+from truage_core import logging as tclog, runlog  # noqa: E402
+tclog.configure_stdlib_json(os.environ.get("LOG_LEVEL", "INFO"), service="nacstam")
 log = logging.getLogger("truage-pulse")
 
 app = Flask(__name__)
+
+
+@app.before_request
+def _bind_request_id():
+    """Adopt the caller's correlation id (portal forwards X-Request-ID) or mint one."""
+    tclog.bind_request_id(request.headers.get(tclog.REQUEST_ID_HEADER))
+
+
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-change-me")
 
 
@@ -41,7 +47,11 @@ def _handle_pipeline_error(source: str, exc: Exception):
     tb_text = "".join(tb_module.format_exception(type(exc), exc, exc.__traceback__))
     log.error("%s crashed: %s", source, exc)
     try:
-        storage.record_error(source, str(exc), tb_text)
+        runlog.record_error(
+            "nacstam", source, str(exc),
+            traceback_text=tb_text,
+            correlation_id=tclog.current_request_id(),
+        )
     except Exception as store_exc:
         log.warning("Could not record error to DB: %s", store_exc)
     alerting.send_crash_alert(source, str(exc), exc)
@@ -51,6 +61,7 @@ def _handle_pipeline_error(source: str, exc: Exception):
 # Ensure DB exists before serving any traffic
 try:
     storage.init_db()
+    runlog.init_tables()
 except Exception as e:
     log.warning("Could not initialize DB: %s", e)
 
@@ -72,7 +83,7 @@ def errors_view():
     production), for reviewing what happened beyond what's convenient to
     scroll through in raw Railway logs."""
     limit = request.args.get("limit", default=50, type=int)
-    return jsonify(storage.get_recent_errors(limit=limit))
+    return jsonify(runlog.recent_errors(limit=limit, service="nacstam"))
 
 
 _AUDIT_LOADING_SHELL = """<!DOCTYPE html>
