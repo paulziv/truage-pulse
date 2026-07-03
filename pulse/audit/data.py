@@ -12,25 +12,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from ..hubspot_client import HubSpotClient, get_client
 
-# Owner IDs we know about. These should eventually live in settings, but
-# hardcoding them is fine for v1 — they're rarely-changing org constants.
-AM_OWNER_IDS = {
-    "79423140": "Eddie McFarlane",
-    "87813531": "Megan Terry",
-    "1367430633": "Lisa Rountree",
-}
-
-INACTIVE_OWNER_IDS = {
-    "79761095": "Grant Bleecher",
-    "1285253947": "Bryan Esser",
-}
-
-# Non-AM but active owners that appear on records — for labeling purposes
-OTHER_OWNER_IDS = {
-    "87367233": "Patrick Abernathy",
-    "89184631": "Lia LoBello Reynolds",
-    "78438676": "Stephanie Sikorski",
-}
+# Owner-ID maps now live in truage-core — single source of truth shared with the
+# Activation Report. Values are unchanged; only their home moved (Phase 1, config adoption).
+from truage_core.config import (  # noqa: E402
+    AM_OWNER_IDS,
+    INACTIVE_OWNER_IDS,
+    OTHER_OWNER_IDS,
+)
 
 
 @dataclass
